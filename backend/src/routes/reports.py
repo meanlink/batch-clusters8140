@@ -8,6 +8,7 @@ from src.models import Report, Delivery
 from src.schemas.report import ReportInput
 from src.middlewares.auth import current_user, admin_only
 from src.services import reports
+from src.services import retractions as retraction_service
 from src.services.audit import record
 from src.utils.serialization import report_dict, delivery_dict
 router=APIRouter()
@@ -20,8 +21,10 @@ def create(data:ReportInput,db=Depends(get_db),u=Depends(admin_only)):
     return report_dict(r)
 @router.post('/reports/{id}/toggle')
 def toggle(id:int,db=Depends(get_db),u=Depends(admin_only)):
+    retraction_service.registry_lock(db)
     r=db.get(Report,id)
     if not r:raise HTTPException(404,'分发计划不存在')
+    if r.voided_at:raise HTTPException(409,'该简报含已撤回批次，已作废且不能重新启用')
     r.enabled=not r.enabled;record(db,u.email,'report.toggle',{'id':id,'enabled':r.enabled});db.commit()
     return report_dict(r)
 @router.get('/deliveries')

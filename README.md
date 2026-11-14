@@ -29,7 +29,17 @@ Python 3.12 / FastAPI / SQLAlchemy / NumPy / SciPy / scikit-learn；MySQL 8.0；
 ## 目录与工程约定
 backend/src/{models,schemas,services,routes,controllers,middlewares,constants,config,utils}；backend/scripts/seed_demo.py；backend/migrations/initial.py。
 frontend/src/{api,stores,types,components/common,hooks,pages,router,utils,constants}。
-Role 枚举：admin/analyst/viewer；JobStatus：queued/running/completed/failed。后端 backend/src/constants/enums.py，前端 frontend/src/constants/enums.js；路由权限在 middlewares/auth.py；页面按相同角色控制操作入口。
+Role 枚举：admin/analyst/viewer；JobStatus：queued/running/completed/failed/invalid。后端 backend/src/constants/enums.py，前端 frontend/src/constants/enums.js；路由权限在 middlewares/auth.py；页面按相同角色控制操作入口。
+
+## 批次撤回与失效
+校准复核判定读数不可信时，负责人可在数据接入页按批次号登记撤回原因（`POST /retractions`，接口幂等拒绝重复批次）。登记会追溯到所有含该批次的数据快照（含之后导入的快照，导入时即被隔离标记）、分析任务与简报：
+
+- 等候中 / 计算中的分析立即失效；计算并发时以撤回登记为准，worker 丢弃迟到结果，不写入有效结果。
+- 已有结果保留原数据与旧结果供追溯，但分析转为 `invalid`、撤销批准，不能再批准或创建简报。
+- 已发简报与归档文件保留，标记 `voided_at` / `void_reason`，不能重新启用，worker 不再归档。
+- 影响范围、作废原因与替代关系见「数据接入 → 批次撤回登记与影响范围」及 `GET /retractions/impact`、`GET /jobs/{id}/impact`。
+
+受影响分析可发起剔除撤回批次的重算（`POST /jobs/{id}/recompute`，analyst/admin）：新任务记录 `excluded_batch_ids` 与 `replaces_job_id`，原始数据快照不改动。登记与重算均写入审计。撤回登记仅负责人可执行，重算允许分析与负责人。
 
 ## 环境变量与 Docker
 COMPOSE_PROJECT_NAME=batch-clusters；FRONTEND_PORT=18209；BACKEND_PORT=19209；DB_PORT=17709；DB_PASSWORD、JWT_SECRET 见 .env.example；SEED_DEMO 默认 true。共享命名产物卷供后端下载与 worker 写入，数据库/Redis 各持久卷。

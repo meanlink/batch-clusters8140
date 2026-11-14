@@ -9,3 +9,7 @@ class Dataset(Base):
     records: Mapped[list] = mapped_column(JSON)
     checksum: Mapped[str] = mapped_column(String(64))
     created_at: Mapped[float] = mapped_column(Double)
+    # Batch ids present in this snapshot that are on the retraction registry.
+    # Kept on the dataset so an import that arrives after the retraction is
+    # visibly quarantined without touching the original records.
+    retracted_batch_ids: Mapped[list] = mapped_column(JSON, default=list)
